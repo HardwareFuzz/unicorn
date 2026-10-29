@@ -7,6 +7,7 @@
 #include "sysemu/cpus.h"
 #include "sysemu/tcg.h"
 #include "cpu.h"
+#include "internals.h"
 #include "uc_priv.h"
 #include "unicorn_common.h"
 #include "unicorn.h"
@@ -114,7 +115,7 @@ static uint32_t v7m_mrs_xpsr(CPUARMState *env, uint32_t reg)
     uint32_t mask = 0;
 
     if (reg & 1) {
-        mask |= XPSR_EXCP; /* IPSR (unpriv. reads as zero) */
+        mask |= XPSR_EXCP; /* Debugger access observes the actual IPSR. */
     }
 
     if (!(reg & 4)) {
@@ -302,11 +303,19 @@ uc_err reg_read(void *_env, int mode, unsigned int regid, void *value,
             break;
         case UC_ARM_REG_MSP:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 8);
+            /*
+             * The public debugger API must observe real state even when
+             * Thread.nPRIV makes the guest MRS instruction read as zero.
+             * other_sp is the inactive MSP/PSP bank in the current security
+             * state; regs[13] is the currently selected stack pointer.
+             */
+            *(uint32_t *)value = v7m_using_psp(env)
+                ? env->v7m.other_sp : env->regs[13];
             break;
         case UC_ARM_REG_PSP:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 9);
+            *(uint32_t *)value = v7m_using_psp(env)
+                ? env->regs[13] : env->v7m.other_sp;
             break;
         case UC_ARM_REG_IAPSR:
             CHECK_REG_TYPE(int32_t);
@@ -330,19 +339,19 @@ uc_err reg_read(void *_env, int mode, unsigned int regid, void *value,
             break;
         case UC_ARM_REG_PRIMASK:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 16);
+            *(uint32_t *)value = env->v7m.primask[env->v7m.secure];
             break;
         case UC_ARM_REG_BASEPRI:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 17);
+            *(uint32_t *)value = env->v7m.basepri[env->v7m.secure];
             break;
         case UC_ARM_REG_BASEPRI_MAX:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 18);
+            *(uint32_t *)value = env->v7m.basepri[env->v7m.secure];
             break;
         case UC_ARM_REG_FAULTMASK:
             CHECK_REG_TYPE(uint32_t);
-            *(uint32_t *)value = helper_v7m_mrs(env, 19);
+            *(uint32_t *)value = env->v7m.faultmask[env->v7m.secure];
             break;
         case UC_ARM_REG_CONTROL:
             CHECK_REG_TYPE(uint32_t);
