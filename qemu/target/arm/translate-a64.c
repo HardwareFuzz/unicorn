@@ -3378,19 +3378,8 @@ static void disas_ldst_atomic(DisasContext *s, uint32_t insn,
          * The signed min/max ops sign extend the old value into Rt,
          * but the architecture requires it zero extended.
          */
-        switch (size) {
-        case MO_8:
-            tcg_gen_ext8u_i64(tcg_ctx, cpu_reg(s, rt), cpu_reg(s, rt));
-            break;
-        case MO_16:
-            tcg_gen_ext16u_i64(tcg_ctx, cpu_reg(s, rt), cpu_reg(s, rt));
-            break;
-        case MO_32:
-            tcg_gen_ext32u_i64(tcg_ctx, cpu_reg(s, rt), cpu_reg(s, rt));
-            break;
-        default:
-            g_assert_not_reached();
-        }
+        ext_and_shift_reg(tcg_ctx, cpu_reg(s, rt), cpu_reg(s, rt),
+                          size, 0);
     }
 }
 
