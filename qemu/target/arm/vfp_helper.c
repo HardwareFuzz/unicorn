@@ -1164,11 +1164,13 @@ uint64_t HELPER(fjcvtzs)(float64 value, void *vstatus)
         /* While not inexact for IEEE FP, -0.0 is inexact for JavaScript.  */
         inexact = sign;
         if (frac != 0) {
+            /* Nonzero subnormals still make the JavaScript result inexact,
+             * even when flush-to-zero turns the operand into zero.  */
+            inexact = 1;
             if (status->flush_inputs_to_zero) {
                 float_raise(float_flag_input_denormal, status);
             } else {
                 float_raise(float_flag_inexact, status);
-                inexact = 1;
             }
         }
         frac = 0;
